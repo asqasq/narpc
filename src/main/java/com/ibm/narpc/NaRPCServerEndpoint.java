@@ -27,11 +27,11 @@ import java.net.StandardSocketOptions;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
-public class NaRPCServerEndpoint<R extends NaRPCMessage, T extends NaRPCMessage> {
-	private NaRPCServerGroup<R,T> serverGroup;
+public class NaRPCServerEndpoint<R extends NaRPCMessage, T extends NaRPCMessage, C extends NaRPCContext> {
+	private NaRPCServerGroup<R,T,C> serverGroup;
 	private ServerSocketChannel serverSocket;
 	
-	public NaRPCServerEndpoint(NaRPCServerGroup<R,T> serverGroup) throws IOException{
+	public NaRPCServerEndpoint(NaRPCServerGroup<R,T,C> serverGroup) throws IOException{
 		this.serverGroup = serverGroup;
 		this.serverSocket = ServerSocketChannel.open();
 		this.serverSocket.setOption(StandardSocketOptions.SO_REUSEADDR, true);
@@ -48,7 +48,7 @@ public class NaRPCServerEndpoint<R extends NaRPCMessage, T extends NaRPCMessage>
 		serverSocket.close();
 	}
 
-	public NaRPCServerEndpoint<R,T> bind(InetSocketAddress address) throws IOException {
+	public NaRPCServerEndpoint<R,T,C> bind(InetSocketAddress address) throws IOException {
 		serverSocket.bind(address);
 		return this;
 	}

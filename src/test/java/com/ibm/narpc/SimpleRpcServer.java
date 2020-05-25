@@ -34,7 +34,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
 
-public class SimpleRpcServer implements NaRPCService<SimpleRpcRequest, SimpleRpcResponse> {
+public class SimpleRpcServer implements NaRPCService<SimpleRpcRequest, SimpleRpcResponse, SimpleRpcContext> {
 	private SimpleRpcResponse fakeResponse;
 	private String address;
 	private int port;
@@ -51,8 +51,8 @@ public class SimpleRpcServer implements NaRPCService<SimpleRpcRequest, SimpleRpc
 	
 	private void run() {
 		try {
-			NaRPCServerGroup<SimpleRpcRequest, SimpleRpcResponse> serverGroup = new NaRPCServerGroup<SimpleRpcRequest, SimpleRpcResponse>(this, queueDepth, NaRPCGroup.DEFAULT_MESSAGE_SIZE, true, cores);
-			NaRPCServerEndpoint<SimpleRpcRequest, SimpleRpcResponse> serverEndpoint = serverGroup.createServerEndpoint();
+			NaRPCServerGroup<SimpleRpcRequest, SimpleRpcResponse, SimpleRpcContext> serverGroup = new NaRPCServerGroup<SimpleRpcRequest, SimpleRpcResponse, SimpleRpcContext>(this, queueDepth, NaRPCGroup.DEFAULT_MESSAGE_SIZE, true, cores);
+			NaRPCServerEndpoint<SimpleRpcRequest, SimpleRpcResponse, SimpleRpcContext> serverEndpoint = serverGroup.createServerEndpoint();
 			InetSocketAddress inetSocketAddress = new InetSocketAddress(address, port);
 			serverEndpoint.bind(inetSocketAddress);			
 			
@@ -109,7 +109,7 @@ public class SimpleRpcServer implements NaRPCService<SimpleRpcRequest, SimpleRpc
 	}
 
 	@Override
-	public SimpleRpcResponse processRequest(SimpleRpcRequest request) {
+	public SimpleRpcResponse processRequest(SimpleRpcRequest request, int nrRetries, SimpleRpcContext context) {
 //		System.out.println("got request, value " + request.getCommand());
 		fakeResponse.setValue(request.getCommand());
 		return fakeResponse;
@@ -130,4 +130,9 @@ public class SimpleRpcServer implements NaRPCService<SimpleRpcRequest, SimpleRpc
 	public SimpleRpcRequest createRequest(){
 		return new SimpleRpcRequest();
 	}
+
+
+  public SimpleRpcContext createContext() {
+    return new SimpleRpcContext();
+  }
 }

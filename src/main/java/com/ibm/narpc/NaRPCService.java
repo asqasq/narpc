@@ -21,11 +21,21 @@
 
 package com.ibm.narpc;
 
-public interface NaRPCService<R extends NaRPCMessage, T extends NaRPCMessage> {
+public interface NaRPCService<R extends NaRPCMessage, T extends NaRPCMessage, C extends NaRPCContext> {
 	R createRequest();
-	T processRequest(R request);
+  /* nrRetry indicates how often processRequest() was invoked for the SAME request.
+   * In case of failure, processRequest() may return null as response. In this case,
+   * the dispatcher will invoke processRequest() with the same request later and
+   * increment the counter. The service can decide, how often it wants to be
+   * retried. As long as it returns null, it will be retried. To stop retry,
+   * the service should return a response.
+   */
+	T processRequest(R request, int nrRetry, C context);
 	/* event when a new connection arrives */
 	void addEndpoint(NaRPCServerChannel newConnection);
 	/* event when an old connection is closed, or aborted */
 	void removeEndpoint(NaRPCServerChannel closedConnection);
+
+  /* create a context object needed for continuation, if a request blocks due to no free blocks */
+  C createContext();
 }

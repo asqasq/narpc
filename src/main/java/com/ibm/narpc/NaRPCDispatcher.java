@@ -28,14 +28,36 @@ import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.LinkedList;
 import org.slf4j.Logger;
 
-public class NaRPCDispatcher<R extends NaRPCMessage, T extends NaRPCMessage> implements Runnable {
+public class NaRPCDispatcher<R extends NaRPCMessage, T extends NaRPCMessage, C extends NaRPCContext> implements Runnable {
     static private Logger LOG = NaRPCUtils.getLogger();
     
+    class RetryRequestState {
+      int nrRetries;
+      R request;
+      NaRPCServerChannel channel;
+      long ticket;
+      C context;
+
+      RetryRequestState(R request, NaRPCServerChannel channel, long ticket, C context) {
+        this.nrRetries = 0;
+        this.request = request;
+        this.channel = channel;
+        this.ticket = ticket;
+        this.context = context;
+      }
+      int getAndIncNrRetries() {
+        nrRetries++;
+        return (nrRetries);
+      }
+    }
+
+    private LinkedList<RetryRequestState> retries;
     private NaRPCGroup group;
     private LinkedBlockingQueue<NaRPCServerChannel> incomingChannels;
-    private NaRPCService<R,T> service;
+    private NaRPCService<R,T,C> service;
     private Selector selector;
     private R request;
     private int id;
@@ -46,13 +68,14 @@ public class NaRPCDispatcher<R extends NaRPCMessage, T extends NaRPCMessage> imp
     	
     }
 
-    public NaRPCDispatcher(NaRPCGroup group, NaRPCService<R,T> service, int id) throws IOException {
+    public NaRPCDispatcher(NaRPCGroup group, NaRPCService<R,T,C> service, int id) throws IOException {
     	this.group = group;
         this.service = service;
         this.id = id;
         this.selector = Selector.open();
         this.incomingChannels = new LinkedBlockingQueue<NaRPCServerChannel>();
         this.request = service.createRequest();
+        this.retries = new LinkedList<RetryRequestState>();
         this.isAlive = true;
     }
 
@@ -83,8 +106,15 @@ public class NaRPCDispatcher<R extends NaRPCMessage, T extends NaRPCMessage> imp
 							NaRPCServerChannel channel = (NaRPCServerChannel) key.attachment();
 							long ticket = channel.receiveMessage(request);
 							if(ticket > 0){
-								T response = service.processRequest(request);
-								channel.transmitMessage(ticket, response);
+                C context = service.createContext();
+								T response = service.processRequest(request, 0, context);
+                if (response == null) {
+                  retries.add(new RetryRequestState(request, channel, ticket, context));
+                  this.request = service.createRequest();
+                  System.out.println("Queued request ticket " + ticket + "\n");
+                } else {
+								  channel.transmitMessage(ticket, response);
+                }
 							} else if (ticket < 0){
 								LOG.info("closing channel " + channel.address());
 								this.service.removeEndpoint(channel);
@@ -98,6 +128,7 @@ public class NaRPCDispatcher<R extends NaRPCMessage, T extends NaRPCMessage> imp
 					}
 				}
 				processIncomingChannels();
+        processRetryList();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -117,4 +148,21 @@ public class NaRPCDispatcher<R extends NaRPCMessage, T extends NaRPCMessage> imp
 			channel = incomingChannels.poll();
 		}		
 	}
+
+
+  private void processRetryList() throws IOException {
+    LinkedList<RetryRequestState> tmp = new LinkedList<RetryRequestState>();
+    for(RetryRequestState rs: this.retries) {
+      System.out.println("Handle queued request " + rs.ticket + " for the " + (rs.nrRetries + 1) + " time\n");
+      T response = service.processRequest(rs.request, rs.getAndIncNrRetries(), rs.context);
+      if (response == null) {
+        System.out.println("request " + rs.ticket + " still pending\n");
+        tmp.add(rs);
+      } else {
+        System.out.println("request " + rs.ticket + " finished successfully after " + rs.nrRetries + " times\n");
+			  rs.channel.transmitMessage(rs.ticket, response);
+      }
+    }
+    this.retries = tmp;
+  }
 }

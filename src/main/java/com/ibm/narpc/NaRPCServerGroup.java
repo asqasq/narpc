@@ -27,26 +27,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 
-public class NaRPCServerGroup<R extends NaRPCMessage, T extends NaRPCMessage> extends NaRPCGroup {
+public class NaRPCServerGroup<R extends NaRPCMessage, T extends NaRPCMessage, C extends NaRPCContext> extends NaRPCGroup {
 	private static final Logger LOG = NaRPCUtils.getLogger();
 	public static final int DEFAULT_DISPATCHARRAY = 1;
 	
-	private ArrayList<NaRPCDispatcher<R,T>> dispatcherArray;
+	private ArrayList<NaRPCDispatcher<R,T,C>> dispatcherArray;
 	private AtomicInteger arrayIndex;
 	
-	public NaRPCServerGroup(NaRPCService<R,T> service) throws IOException{
+	public NaRPCServerGroup(NaRPCService<R,T,C> service) throws IOException{
 		this(service, NaRPCGroup.DEFAULT_QUEUE_DEPTH, NaRPCGroup.DEFAULT_MESSAGE_SIZE, NaRPCGroup.DEFAULT_NODELAY, DEFAULT_DISPATCHARRAY);
 	}
 	
-	public NaRPCServerGroup(NaRPCService<R,T> service, int queueDepth, int messageSize, boolean nodelay) throws IOException{
+	public NaRPCServerGroup(NaRPCService<R,T,C> service, int queueDepth, int messageSize, boolean nodelay) throws IOException{
 		this(service, queueDepth, messageSize, nodelay, DEFAULT_DISPATCHARRAY);
 	}	
 	
-	public NaRPCServerGroup(NaRPCService<R,T> service, int queueDepth, int messageSize, boolean nodelay, int arraySize) throws IOException{
+	public NaRPCServerGroup(NaRPCService<R,T,C> service, int queueDepth, int messageSize, boolean nodelay, int arraySize) throws IOException{
 		super(queueDepth, messageSize, nodelay);
-		this.dispatcherArray = new ArrayList<NaRPCDispatcher<R,T>>(arraySize);
+		this.dispatcherArray = new ArrayList<NaRPCDispatcher<R,T,C>>(arraySize);
 		for (int i = 0; i < arraySize; i++) {
-			NaRPCDispatcher<R,T> dispatcher = new NaRPCDispatcher<R,T>(this, service, i);
+			NaRPCDispatcher<R,T,C> dispatcher = new NaRPCDispatcher<R,T,C>(this, service, i);
 			Thread thread = new Thread(dispatcher);
 			thread.start();
 			dispatcherArray.add(dispatcher);
@@ -55,13 +55,13 @@ public class NaRPCServerGroup<R extends NaRPCMessage, T extends NaRPCMessage> ex
 		LOG.info("new NaRPC server group v1.5.0, queueDepth " + this.getQueueDepth() + ", messageSize " + this.getMessageSize() + ", nodealy " + this.isNodelay() + ", cores " + arraySize);
 	}
 	
-	public NaRPCServerEndpoint<R,T> createServerEndpoint() throws IOException{
-		return new NaRPCServerEndpoint<R,T>(this);
+	public NaRPCServerEndpoint<R,T,C> createServerEndpoint() throws IOException{
+		return new NaRPCServerEndpoint<R,T,C>(this);
 	}
 
 	public void registerEndpoint(NaRPCServerChannel endpoint) throws IOException {
 		int index = getAndIncrement() % dispatcherArray.size();
-		NaRPCDispatcher<R,T> dispatcher = dispatcherArray.get(index);
+		NaRPCDispatcher<R,T,C> dispatcher = dispatcherArray.get(index);
 		dispatcher.addChannel(endpoint);
 	}
 
